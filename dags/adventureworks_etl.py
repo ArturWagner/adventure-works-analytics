@@ -21,7 +21,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.utils.task_group import TaskGroup
 
-from dags.config import BQ_DATASET, GCP_CONN_ID, GCP_PROJECT_ID, MSSQL_CONN_ID
+from config import BQ_DATASET, GCP_CONN_ID, GCP_PROJECT_ID, MSSQL_CONN_ID
 
 log = logging.getLogger(__name__)
 
@@ -80,11 +80,26 @@ def extract_from_mssql(table_name: str, **context) -> None:
         "TrustServerCertificate=yes;"
     )
 
+    def _serialize(val):
+        """Convert pyodbc non-JSON types to JSON-safe equivalents."""
+        from decimal import Decimal
+        import datetime
+        if isinstance(val, Decimal):
+            return float(val)
+        if isinstance(val, (datetime.date, datetime.datetime)):
+            return val.isoformat()
+        if isinstance(val, bytes):
+            return val.hex()
+        return val
+
     with pyodbc.connect(conn_str) as cx:
         cursor = cx.cursor()
         cursor.execute(query)
         columns = [col[0] for col in cursor.description]
-        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        rows = [
+            {k: _serialize(v) for k, v in zip(columns, row)}
+            for row in cursor.fetchall()
+        ]
 
     log.info("Extracted %d rows from %s", len(rows), table_name)
     context["ti"].xcom_push(key=f"rows_{table_name}", value=rows)
@@ -128,6 +143,47 @@ def load_to_bigquery(table_name: str, **context) -> None:
     log.info("Load complete for %s — %d rows", table_name, len(rows))
 
 
+def create_bigquery_views(**context) -> None:
+    """
+    Apply CREATE OR REPLACE VIEW for each SQL file in sql/views/.
+
+    Reads every *.sql file from the views directory and executes it against
+    BigQuery using the same GCP connection as load_to_bigquery.
+    Idempotent — CREATE OR REPLACE VIEW makes it safe to re-run.
+    """
+    import glob
+
+    from airflow.hooks.base import BaseHook
+    from google.cloud import bigquery
+    from google.oauth2 import service_account
+
+    conn_info = BaseHook.get_connection(GCP_CONN_ID)
+    extra = conn_info.extra_dejson if hasattr(conn_info, "extra_dejson") else {}
+    keyfile = extra.get("keyfile_dict") or extra.get("key_path")
+
+    if keyfile and isinstance(keyfile, dict):
+        credentials = service_account.Credentials.from_service_account_info(keyfile)
+        client = bigquery.Client(project=GCP_PROJECT_ID, credentials=credentials)
+    else:
+        # Fall back to ADC (e.g. GOOGLE_APPLICATION_CREDENTIALS env var)
+        client = bigquery.Client(project=GCP_PROJECT_ID)
+
+    view_files = sorted(glob.glob("/opt/airflow/sql/views/*.sql"))
+    if not view_files:
+        log.warning("No view files found in /opt/airflow/sql/views/ — nothing to apply")
+        return
+
+    log.info("Applying %d BigQuery view(s)", len(view_files))
+    for path in view_files:
+        with open(path, encoding="utf-8") as fh:
+            sql = fh.read()
+        job = client.query(sql)
+        job.result()  # wait for completion; raises on error
+        log.info("Applied view from %s", path)
+
+    log.info("All views applied successfully")
+
+
 # ---------------------------------------------------------------------------
 # Default args (apply to every task)
 # ---------------------------------------------------------------------------
@@ -145,7 +201,7 @@ default_args = {
 with DAG(
     dag_id="adventureworks-etl",
     default_args=default_args,
-    schedule_interval="@daily",
+    schedule="@daily",
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=["adventureworks", "etl"],
@@ -179,4 +235,9 @@ with DAG(
             )
             _extract >> _load
 
-    load_dimensions >> load_facts
+    create_views = PythonOperator(
+        task_id="create_bigquery_views",
+        python_callable=create_bigquery_views,
+    )
+
+    load_dimensions >> load_facts >> create_views
