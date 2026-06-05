@@ -1,14 +1,21 @@
 -- View: vw_vendas_por_regiao
--- Purpose: Aggregate sales by geography and sales territory for Looker Studio.
--- Source tables: fact_internet_sales, fact_reseller_sales, dim_sales_territory, dim_geography
+-- Purpose: Aggregate sales by territory and country for Looker Studio world map.
+-- Uses dim_sales_territory only (1 row per territory) — avoids dim_geography fan-out.
+-- country_region_code from dim_sales_territory is the clean 1:1 key per territory.
 -- Idempotent: CREATE OR REPLACE VIEW — safe to re-run.
--- Note: city maps to state_province (most granular geographic unit in dim_geography).
--- LEFT JOIN on geography ensures rows without a matching state/province are still included.
 CREATE OR REPLACE VIEW `unigran-tcc.adventureworks.vw_vendas_por_regiao` AS
 SELECT
-  dg.state_province                AS city,
-  dst.territory_name               AS territory_region,
-  SUM(combined.sales_amount)       AS sales_amount,
+  dst.territory_name AS territory_region,
+  CASE dst.country_region_code
+    WHEN 'US' THEN 'United States'
+    WHEN 'CA' THEN 'Canada'
+    WHEN 'AU' THEN 'Australia'
+    WHEN 'FR' THEN 'France'
+    WHEN 'DE' THEN 'Germany'
+    WHEN 'GB' THEN 'United Kingdom'
+    ELSE dst.country_region_code
+  END AS country_region,
+  SUM(combined.sales_amount) AS sales_amount,
   combined.order_date
 FROM (
   SELECT sales_territory_key, sales_amount, order_date
@@ -19,9 +26,4 @@ FROM (
 ) AS combined
 INNER JOIN `unigran-tcc.adventureworks.dim_sales_territory` AS dst
   ON combined.sales_territory_key = dst.sales_territory_key
-LEFT JOIN `unigran-tcc.adventureworks.dim_geography` AS dg
-  ON dst.sales_territory_key = dg.territory_key
-GROUP BY
-  dg.state_province,
-  dst.territory_name,
-  combined.order_date;
+GROUP BY 1, 2, 4;
