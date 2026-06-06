@@ -1,31 +1,20 @@
 -- dim_product.sql
--- Extract and transform DimProduct from AdventureWorks2022
--- Target: adventureworks.dim_product (BigQuery)
--- Strategy: full load (WRITE_TRUNCATE)
-
 SELECT
-    ProductKey                      AS product_key,
-    ProductAlternateKey             AS product_alternate_key,
-    ProductSubcategoryKey           AS product_subcategory_key,
-    WeightUnitMeasureCode           AS weight_unit_measure_code,
-    SizeUnitMeasureCode             AS size_unit_measure_code,
-    EnglishProductName              AS product_name,
-    StandardCost                    AS standard_cost,
-    FinishedGoodsFlag               AS finished_goods_flag,
-    Color                           AS color,
-    SafetyStockLevel                AS safety_stock_level,
-    ReorderPoint                    AS reorder_point,
-    ListPrice                       AS list_price,
-    Size                            AS size,
-    SizeRange                       AS size_range,
-    Weight                          AS weight,
-    DaysToManufacture               AS days_to_manufacture,
-    ProductLine                     AS product_line,
-    DealerPrice                     AS dealer_price,
-    Class                           AS class,
-    Style                           AS style,
-    EnglishDescription              AS description,
-    StartDate                       AS start_date,
-    EndDate                         AS end_date,
-    Status                          AS status
-FROM AdventureWorks2022.dbo.DimProduct
+    p.ProductID                                     AS product_key,
+    p.Name                                          AS product_name,
+    p.ProductNumber                                 AS product_number,
+    ISNULL(p.Color, 'N/A')                         AS color,
+    ISNULL(p.Size, 'N/A')                          AS size,
+    ISNULL(CAST(p.Weight AS FLOAT), 0)             AS weight,
+    p.ListPrice                                     AS list_price,
+    p.StandardCost                                  AS standard_cost,
+    ISNULL(p.ProductLine, 'N/A')                   AS product_line,
+    ISNULL(ps.Name, 'N/A')                         AS subcategory_name,
+    ISNULL(pc.Name, 'N/A')                         AS category_name,
+    ISNULL(ps.ProductSubcategoryID, 0)             AS subcategory_key,
+    ISNULL(pc.ProductCategoryID, 0)                AS category_key,
+    p.SellStartDate                                 AS sell_start_date,
+    p.SellEndDate                                   AS sell_end_date
+FROM Production.Product p
+LEFT JOIN Production.ProductSubcategory ps ON p.ProductSubcategoryID = ps.ProductSubcategoryID
+LEFT JOIN Production.ProductCategory pc ON ps.ProductCategoryID = pc.ProductCategoryID

@@ -1,13 +1,4 @@
--- dim_sales_territory.sql
--- Extract and transform DimSalesTerritory from AdventureWorks2022
--- Target: adventureworks.dim_sales_territory (BigQuery)
--- Strategy: full load (WRITE_TRUNCATE)
-
-SELECT
-    SalesTerritoryKey               AS sales_territory_key,
-    SalesTerritoryAlternateKey      AS sales_territory_alternate_key,
-    SalesTerritoryRegion            AS territory_region,
-    SalesTerritoryCountry           AS territory_country,
-    SalesTerritoryGroup             AS territory_group,
-    SalesTerritoryImage             AS territory_image
-FROM AdventureWorks2022.dbo.DimSalesTerritory
+SELECT TerritoryID AS sales_territory_key, Name AS territory_name,
+       CountryRegionCode AS country_region_code, [Group] AS territory_group,
+       SalesYTD AS sales_ytd, SalesLastYear AS sales_last_year
+FROM Sales.SalesTerritory

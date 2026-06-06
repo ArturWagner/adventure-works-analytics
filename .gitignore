@@ -49,6 +49,22 @@
 # ============================================================
 .env
 *.env.local
+# Service account GCP (NUNCA versionar — princípio nº2 da constituição)
+unigran-tcc-*.json
+*-service-account*.json
+
+# ============================================================
+# Ferramentas de IA / assistentes (mantidas só localmente)
+# ============================================================
+.claude/
+CLAUDE.md
+.context-index/
+.githooks/
+
+# ============================================================
+# Instaladores / binários avulsos
+# ============================================================
+*.dmg
 
 # ============================================================
 # Dados binários (AdventureWorks backup)

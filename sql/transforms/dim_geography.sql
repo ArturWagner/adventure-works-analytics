@@ -1,16 +1,6 @@
--- dim_geography.sql
--- Extract and transform DimGeography from AdventureWorks2022
--- Target: adventureworks.dim_geography (BigQuery)
--- Strategy: full load (WRITE_TRUNCATE)
-
-SELECT
-    GeographyKey                    AS geography_key,
-    City                            AS city,
-    StateProvinceCode               AS state_province_code,
-    StateProvinceName               AS state_province_name,
-    CountryRegionCode               AS country_region_code,
-    EnglishCountryRegionName        AS country_region_name,
-    PostalCode                      AS postal_code,
-    SalesTerritoryKey               AS sales_territory_key,
-    IpAddressLocator                AS ip_address_locator
-FROM AdventureWorks2022.dbo.DimGeography
+SELECT sp.StateProvinceID AS geography_key, sp.Name AS state_province,
+       sp.StateProvinceCode AS state_province_code, cr.Name AS country_region,
+       sp.CountryRegionCode AS country_region_code, ISNULL(st.TerritoryID, 0) AS territory_key
+FROM Person.StateProvince sp
+INNER JOIN Person.CountryRegion cr ON sp.CountryRegionCode = cr.CountryRegionCode
+LEFT JOIN Sales.SalesTerritory st ON sp.TerritoryID = st.TerritoryID

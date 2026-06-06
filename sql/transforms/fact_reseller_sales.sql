@@ -1,35 +1,26 @@
--- fact_reseller_sales.sql
--- Extract and transform FactResellerSales from AdventureWorks2022
--- Target: adventureworks.fact_reseller_sales (BigQuery)
--- Strategy: full load (WRITE_TRUNCATE)
--- Partitioning: OrderDateKey (configured in BigQuery schema)
-
+-- fact_reseller_sales.sql — vendas via canal de revendedores (OnlineOrderFlag=0)
 SELECT
-    ProductKey                      AS product_key,
-    OrderDateKey                    AS order_date_key,
-    DueDateKey                      AS due_date_key,
-    ShipDateKey                     AS ship_date_key,
-    ResellerKey                     AS reseller_key,
-    EmployeeKey                     AS employee_key,
-    PromotionKey                    AS promotion_key,
-    CurrencyKey                     AS currency_key,
-    SalesTerritoryKey               AS sales_territory_key,
-    SalesOrderNumber                AS sales_order_number,
-    SalesOrderLineNumber            AS sales_order_line,
-    RevisionNumber                  AS revision_number,
-    OrderQuantity                   AS order_quantity,
-    UnitPrice                       AS unit_price,
-    ExtendedAmount                  AS extended_amount,
-    UnitPriceDiscountPct            AS unit_price_discount_pct,
-    DiscountAmount                  AS discount_amount,
-    ProductStandardCost             AS product_standard_cost,
-    TotalProductCost                AS total_product_cost,
-    SalesAmount                     AS sales_amount,
-    TaxAmt                          AS tax_amount,
-    Freight                         AS freight,
-    CarrierTrackingNumber           AS carrier_tracking_number,
-    CustomerPONumber                AS customer_po_number,
-    OrderDate                       AS order_date,
-    DueDate                         AS due_date,
-    ShipDate                        AS ship_date
-FROM AdventureWorks2022.dbo.FactResellerSales
+    od.ProductID                                                        AS product_key,
+    CONVERT(INT, CONVERT(VARCHAR, oh.OrderDate, 112))                  AS order_date_key,
+    CONVERT(INT, CONVERT(VARCHAR, oh.DueDate, 112))                    AS due_date_key,
+    CONVERT(INT, CONVERT(VARCHAR, oh.ShipDate, 112))                   AS ship_date_key,
+    oh.CustomerID                                                       AS reseller_key,
+    oh.SalesPersonID                                                    AS employee_key,
+    ISNULL(sop.SpecialOfferID, 1)                                      AS promotion_key,
+    ISNULL((SELECT TOP 1 ToCurrencyCode FROM Sales.CurrencyRate WHERE CurrencyRateID = oh.CurrencyRateID), 'USD') AS currency_key,
+    oh.TerritoryID                                                      AS sales_territory_key,
+    oh.SalesOrderNumber                                                 AS sales_order_number,
+    od.SalesOrderDetailID                                               AS sales_order_line,
+    od.OrderQty                                                         AS order_quantity,
+    od.UnitPrice                                                        AS unit_price,
+    od.UnitPrice * od.OrderQty                                         AS extended_amount,
+    od.UnitPrice * (1 - od.UnitPriceDiscount) * od.OrderQty           AS sales_amount,
+    oh.TaxAmt / NULLIF(oh.SubTotal, 0) * od.LineTotal                 AS tax_amount,
+    oh.Freight  / NULLIF(oh.SubTotal, 0) * od.LineTotal               AS freight,
+    p.StandardCost * od.OrderQty                                       AS total_product_cost,
+    oh.OrderDate AS order_date, oh.DueDate AS due_date, oh.ShipDate AS ship_date
+FROM Sales.SalesOrderHeader oh
+INNER JOIN Sales.SalesOrderDetail od ON oh.SalesOrderID = od.SalesOrderID
+INNER JOIN Sales.SpecialOfferProduct sop ON od.ProductID = sop.ProductID AND od.SpecialOfferID = sop.SpecialOfferID
+INNER JOIN Production.Product p ON od.ProductID = p.ProductID
+WHERE oh.OnlineOrderFlag = 0 AND oh.SalesPersonID IS NOT NULL
