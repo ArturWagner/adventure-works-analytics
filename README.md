@@ -17,7 +17,7 @@ warehouse no **Google BigQuery** e expõe dashboards interativos no **Looker Stu
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![SQL Server](https://img.shields.io/badge/SQL_Server-2022-CC2927?style=for-the-badge&logo=microsoftsqlserver&logoColor=white)
 
-<sub>TCC de Engenharia de Software · UNIGRAN 2025 · **Artur Wagner**</sub>
+<sub>Engenharia de Software · **Artur Wagner**</sub>
 
 </div>
 
@@ -197,8 +197,7 @@ python -c "from airflow.models import DagBag; db = DagBag('dags/'); assert not d
 
 ## 👤 Autor
 
-**Artur Wagner** — Trabalho de Conclusão de Curso · Engenharia de Software
-**UNIGRAN** · 2025
+**Artur Wagner** — Engenharia de Software
 
 <div align="center">
 <sub>Da extração ao dashboard, com ferramentas open-source e serviços de nuvem.</sub>
